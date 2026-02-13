@@ -1,4 +1,4 @@
-const pool = require('../db');
+const initializeDB = require('../db'); // Import the initialization function
 const bcrypt = require('bcryptjs');
 const { validationResult } = require('express-validator');
 
@@ -17,10 +17,18 @@ exports.registerUser = async (req, res) => {
     }
 
     try {
+        const db = await initializeDB(); // Get the initialized DB instance
+
         // Check if email already exists
-        const userExists = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (userExists.rows.length > 0) {
+        const userExistsByEmail = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (userExistsByEmail.rows.length > 0) {
             return res.status(400).json({ msg: 'El email ya está registrado.' });
+        }
+
+        // Check if username already exists
+        const userExistsByUsername = await db.query('SELECT * FROM users WHERE username = $1', [username]);
+        if (userExistsByUsername.rows.length > 0) {
+            return res.status(400).json({ msg: 'El nombre de usuario ya está en uso.' });
         }
 
         // Hash password
@@ -28,7 +36,7 @@ exports.registerUser = async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
         // Save user to database
-        const newUser = await pool.query(
+        const newUser = await db.query(
             'INSERT INTO users (username, email, password) VALUES ($1, $2, $3) RETURNING id, username, email',
             [username, email, hashedPassword]
         );
@@ -54,8 +62,10 @@ exports.loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     try {
+        const db = await initializeDB(); // Get the initialized DB instance
+
         // Check if user exists
-        const user = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        const user = await db.query('SELECT * FROM users WHERE email = $1', [email]);
         if (user.rows.length === 0) {
             return res.status(400).json({ msg: 'Credenciales inválidas.' });
         }
